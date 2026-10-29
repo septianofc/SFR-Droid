@@ -1,5 +1,5 @@
 
-name: Build SFR Droid APP
+name: Build SFR Droid APK
 
 on:
   workflow_dispatch:
