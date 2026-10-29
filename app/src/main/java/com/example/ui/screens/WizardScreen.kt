@@ -1005,6 +1005,29 @@ fun WizardStepEndpoint(
             )
         }
 
+        // Encryption Settings Option
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Enkripsi Data (AES-256)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Standar keamanan opsional. Default tidak dienkripsi (No Enc). Anda dapat mengaktifkannya jika server Anda ingin menerima ciphertext.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
         item {
             Text(
                 text = "Interval Heartbeat Otomatis",

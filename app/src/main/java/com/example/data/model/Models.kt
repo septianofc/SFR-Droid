@@ -16,7 +16,21 @@ data class SfrConfig(
     val isStandby: Boolean = false,
     val selectedApps: Set<String> = emptySet(),
     val selectedFields: Set<String> = setOf("app", "package", "title", "message", "timestamp"),
-    val wizardCompleted: Boolean = false
+    val wizardCompleted: Boolean = false,
+    val encryptToken: Boolean = false,
+    val encryptPayload: Boolean = false,
+    val encryptionKey: String = "",
+    val standbyStartTime: Long = 0L,
+    val sentNotificationsCount: Int = 0
+)
+
+data class DeveloperNotification(
+    val id: String,
+    val title: String,
+    val message: String,
+    val timestamp: Long = System.currentTimeMillis(),
+    val url: String? = null,
+    val type: String = "info"
 )
 
 data class PermissionStatus(
@@ -40,6 +54,7 @@ enum class LogEventType {
     WEBHOOK_FAILED,
     HEARTBEAT_PING,
     TEST_PING,
+    DEV_UPDATE_RECEIVED,
     SYSTEM_EVENT
 }
 

@@ -5,6 +5,8 @@ import com.example.data.model.ApiCallResult
 import com.example.data.model.EventLogItem
 import com.example.data.model.LogEventType
 import com.example.data.repository.AppLogRepository
+import com.example.data.repository.ConfigRepository
+import com.example.util.EncryptionHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -27,7 +29,30 @@ object WebhookDispatcher {
     ): ApiCallResult = withContext(Dispatchers.IO) {
         val startTime = System.currentTimeMillis()
         var connection: HttpURLConnection? = null
-        val payloadStr = payload.toString()
+
+        val config = ConfigRepository.getInstance(context).getConfig()
+        val encKey = config.encryptionKey
+
+        // Handle token encryption if enabled
+        val finalToken = if (config.encryptToken && encKey.isNotBlank() && token.isNotBlank()) {
+            EncryptionHelper.encrypt(token, encKey)
+        } else {
+            token
+        }
+
+        // Handle payload encryption if enabled
+        val (finalBodyString, isEncrypted) = if (config.encryptPayload && encKey.isNotBlank()) {
+            val rawJson = payload.toString()
+            val encryptedData = EncryptionHelper.encrypt(rawJson, encKey)
+            val wrapped = JSONObject().apply {
+                put("encrypted", true)
+                put("data", encryptedData)
+                put("timestamp", System.currentTimeMillis())
+            }
+            Pair(wrapped.toString(), true)
+        } else {
+            Pair(payload.toString(), false)
+        }
 
         if (endpoint.isBlank()) {
             val result = ApiCallResult(
@@ -35,7 +60,7 @@ object WebhookDispatcher {
                 httpCode = 0,
                 message = "URL Endpoint belum dikonfigurasi.",
                 latencyMs = 0,
-                sentPayload = payloadStr
+                sentPayload = finalBodyString
             )
             AppLogRepository.getInstance().addLog(
                 EventLogItem(
@@ -58,12 +83,15 @@ object WebhookDispatcher {
                 doInput = true
                 setRequestProperty("Content-Type", "application/json; charset=utf-8")
                 setRequestProperty("User-Agent", "SFR-Droid/1.0 (Android; id.sfrdroid.app)")
-                if (token.isNotBlank()) {
-                    setRequestProperty("Authorization", "Bearer $token")
+                if (finalToken.isNotBlank()) {
+                    setRequestProperty("Authorization", "Bearer $finalToken")
+                }
+                if (isEncrypted) {
+                    setRequestProperty("X-SFR-Encrypted", "true")
                 }
             }
 
-            val bodyBytes = payloadStr.toByteArray(StandardCharsets.UTF_8)
+            val bodyBytes = finalBodyString.toByteArray(StandardCharsets.UTF_8)
             connection.setFixedLengthStreamingMode(bodyBytes.size)
 
             connection.outputStream.use { os: OutputStream ->
@@ -111,20 +139,27 @@ object WebhookDispatcher {
                 else -> "HTTP $responseCode — Respons dari server diterima."
             }
 
+            // Increment sent counter if this was a forwarded notification
+            if (isSuccess && !isTest) {
+                ConfigRepository.getInstance(context).incrementSentCount()
+                StandbyForegroundService.updateStats(context)
+            }
+
             val result = ApiCallResult(
                 isSuccess = isSuccess,
                 httpCode = responseCode,
                 message = statusMessage,
                 latencyMs = latency,
                 responseBody = responseBody,
-                sentPayload = payloadStr
+                sentPayload = finalBodyString
             )
 
+            val encNotice = if (isEncrypted) " [Payload Terenkripsi AES-256]" else ""
             AppLogRepository.getInstance().addLog(
                 EventLogItem(
                     type = if (isTest) LogEventType.TEST_PING else (if (isSuccess) LogEventType.WEBHOOK_SENT else LogEventType.WEBHOOK_FAILED),
-                    title = if (isSuccess) eventTitle else "$eventTitle (Gagal)",
-                    details = "$statusMessage (Waktu: ${latency}ms)\nPayload: ${payloadStr.take(120)}...",
+                    title = if (isSuccess) "$eventTitle$encNotice" else "$eventTitle (Gagal)",
+                    details = "$statusMessage (Waktu: ${latency}ms)\nData: ${finalBodyString.take(120)}...",
                     httpCode = responseCode,
                     success = isSuccess
                 )
@@ -146,7 +181,7 @@ object WebhookDispatcher {
                 httpCode = 0,
                 message = errorMsg,
                 latencyMs = latency,
-                sentPayload = payloadStr
+                sentPayload = finalBodyString
             )
 
             AppLogRepository.getInstance().addLog(

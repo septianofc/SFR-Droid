@@ -46,4 +46,16 @@ class ExampleRobolectricTest {
     assertTrue(loaded.selectedFields.contains("title"))
     assertTrue(loaded.wizardCompleted)
   }
+
+  @Test
+  fun testEncryptionAndDecryption() {
+    val sampleText = "{\"event\":\"notification\",\"title\":\"Budi\",\"message\":\"Halo gan\"}"
+    val secretKey = "kunci_rahasia_sfr_12345"
+
+    val encrypted = com.example.util.EncryptionHelper.encrypt(sampleText, secretKey)
+    assertTrue(encrypted.startsWith("ENC_V1:"))
+
+    val decrypted = com.example.util.EncryptionHelper.decrypt(encrypted, secretKey)
+    assertEquals(sampleText, decrypted)
+  }
 }

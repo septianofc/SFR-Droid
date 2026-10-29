@@ -12,11 +12,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = BlueDarkPrimary,
+    primary = SfrPrimary,
     onPrimary = Color(0xFF003258),
-    primaryContainer = Color(0xFF00497D),
+    primaryContainer = Color(0xFF0D47A1),
     onPrimaryContainer = Color(0xFFD1E4FF),
-    secondary = OrangeDarkAccent,
+    secondary = SfrOrangeAccent,
     onSecondary = Color(0xFF4A2800),
     secondaryContainer = Color(0xFF693C00),
     onSecondaryContainer = Color(0xFFFFDCC1),
@@ -28,10 +28,10 @@ private val DarkColorScheme = darkColorScheme(
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = SfrBluePrimary,
+    primary = SfrPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFFD1E4FF),
-    onPrimaryContainer = Color(0xFF001D36),
+    primaryContainer = SfrPrimaryLight,
+    onPrimaryContainer = Color(0xFF0D47A1),
     secondary = SfrOrangeAccent,
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFFFDCC1),
@@ -39,14 +39,14 @@ private val LightColorScheme = lightColorScheme(
     tertiary = SfrGreenSuccess,
     background = LightBackground,
     surface = LightSurface,
-    surfaceVariant = Color(0xFFE6ECF5),
+    surfaceVariant = Color(0xFFE8EEF7),
     error = SfrRedError
 )
 
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false, // Set false by default to showcase branded SFR Droid colors
+    dynamicColor: Boolean = false, // Keep false to preserve #42A5F5 brand theme
     content: @Composable () -> Unit,
 ) {
     val colorScheme = when {

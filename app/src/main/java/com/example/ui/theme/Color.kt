@@ -2,20 +2,23 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val SfrBluePrimary = Color(0xFF1976D2)
-val SfrBlueSecondary = Color(0xFF0288D1)
+// User specified primary color #42A5F5
+val SfrPrimary = Color(0xFF42A5F5)
+val SfrPrimaryVariant = Color(0xFF1E88E5)
+val SfrPrimaryDark = Color(0xFF1565C0)
+val SfrPrimaryLight = Color(0xFFE3F2FD)
+
 val SfrOrangeAccent = Color(0xFFFF9800)
 val SfrGreenSuccess = Color(0xFF2E7D32)
 val SfrRedError = Color(0xFFD32F2F)
 
 val BlueDarkPrimary = Color(0xFF90CAF9)
-val BlueDarkSecondary = Color(0xFF81D4FA)
-val OrangeDarkAccent = Color(0xFFFFB74D)
+val BlueDarkSecondary = Color(0xFF64B5F6)
 
-val DarkSurface = Color(0xFF121820)
-val DarkBackground = Color(0xFF0B1017)
-val DarkCardSurface = Color(0xFF1A222D)
+val DarkSurface = Color(0xFF10151E)
+val DarkBackground = Color(0xFF0A0E14)
+val DarkCardSurface = Color(0xFF18202C)
 
 val LightSurface = Color(0xFFFFFFFF)
-val LightBackground = Color(0xFFF4F6F9)
+val LightBackground = Color(0xFFF5F8FC)
 val LightCardSurface = Color(0xFFFFFFFF)

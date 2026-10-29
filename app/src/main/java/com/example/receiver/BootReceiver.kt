@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.example.data.repository.ConfigRepository
+import com.example.service.StandbyForegroundService
 import com.example.worker.HeartbeatWorker
 
 class BootReceiver : BroadcastReceiver() {
@@ -12,6 +13,7 @@ class BootReceiver : BroadcastReceiver() {
             val config = ConfigRepository.getInstance(context).getConfig()
             if (config.isStandby) {
                 HeartbeatWorker.schedule(context, true, config.intervalMinutes)
+                StandbyForegroundService.start(context)
             }
         }
     }

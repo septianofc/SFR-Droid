@@ -27,6 +27,12 @@ class ConfigRepository(private val context: Context) {
         val standby = prefs.getBoolean(KEY_STANDBY, false)
         val wizardDone = prefs.getBoolean(KEY_WIZARD_COMPLETED, false)
 
+        val encryptToken = prefs.getBoolean(KEY_ENCRYPT_TOKEN, false)
+        val encryptPayload = prefs.getBoolean(KEY_ENCRYPT_PAYLOAD, false)
+        val encryptionKey = prefs.getString(KEY_ENCRYPTION_KEY, "") ?: ""
+        val standbyStartTime = prefs.getLong(KEY_STANDBY_START_TIME, 0L)
+        val sentCount = prefs.getInt(KEY_SENT_COUNT, 0)
+
         val appsJson = prefs.getString(KEY_APPS, "[]") ?: "[]"
         val selectedApps = mutableSetOf<String>()
         try {
@@ -57,7 +63,12 @@ class ConfigRepository(private val context: Context) {
             isStandby = standby,
             selectedApps = selectedApps,
             selectedFields = selectedFields,
-            wizardCompleted = wizardDone
+            wizardCompleted = wizardDone,
+            encryptToken = encryptToken,
+            encryptPayload = encryptPayload,
+            encryptionKey = encryptionKey,
+            standbyStartTime = standbyStartTime,
+            sentNotificationsCount = sentCount
         )
     }
 
@@ -76,19 +87,55 @@ class ConfigRepository(private val context: Context) {
             .putString(KEY_APPS, appsArray.toString())
             .putString(KEY_FIELDS, fieldsArray.toString())
             .putBoolean(KEY_WIZARD_COMPLETED, config.wizardCompleted)
+            .putBoolean(KEY_ENCRYPT_TOKEN, config.encryptToken)
+            .putBoolean(KEY_ENCRYPT_PAYLOAD, config.encryptPayload)
+            .putString(KEY_ENCRYPTION_KEY, config.encryptionKey)
+            .putLong(KEY_STANDBY_START_TIME, config.standbyStartTime)
+            .putInt(KEY_SENT_COUNT, config.sentNotificationsCount)
             .apply()
 
         _configFlow.value = config
     }
 
     fun setStandby(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_STANDBY, enabled).apply()
-        _configFlow.value = _configFlow.value.copy(isStandby = enabled)
+        val current = _configFlow.value
+        val startTime = if (enabled) {
+            if (current.standbyStartTime > 0 && current.isStandby) current.standbyStartTime else System.currentTimeMillis()
+        } else {
+            0L
+        }
+        val updated = current.copy(isStandby = enabled, standbyStartTime = startTime)
+        prefs.edit()
+            .putBoolean(KEY_STANDBY, enabled)
+            .putLong(KEY_STANDBY_START_TIME, startTime)
+            .apply()
+
+        _configFlow.value = updated
+    }
+
+    fun incrementSentCount(): Int {
+        val currentCount = prefs.getInt(KEY_SENT_COUNT, 0) + 1
+        prefs.edit().putInt(KEY_SENT_COUNT, currentCount).apply()
+        _configFlow.value = _configFlow.value.copy(sentNotificationsCount = currentCount)
+        return currentCount
+    }
+
+    fun resetSentCount() {
+        prefs.edit().putInt(KEY_SENT_COUNT, 0).apply()
+        _configFlow.value = _configFlow.value.copy(sentNotificationsCount = 0)
     }
 
     fun setWizardCompleted(completed: Boolean) {
         prefs.edit().putBoolean(KEY_WIZARD_COMPLETED, completed).apply()
         _configFlow.value = _configFlow.value.copy(wizardCompleted = completed)
+    }
+
+    fun getLastSeenDevNotifTime(): Long {
+        return prefs.getLong(KEY_LAST_DEV_NOTIF_TIME, 0L)
+    }
+
+    fun setLastSeenDevNotifTime(time: Long) {
+        prefs.edit().putLong(KEY_LAST_DEV_NOTIF_TIME, time).apply()
     }
 
     companion object {
@@ -100,6 +147,12 @@ class ConfigRepository(private val context: Context) {
         const val KEY_APPS = "apps"
         const val KEY_FIELDS = "fields"
         const val KEY_WIZARD_COMPLETED = "wizard_completed"
+        const val KEY_ENCRYPT_TOKEN = "encrypt_token"
+        const val KEY_ENCRYPT_PAYLOAD = "encrypt_payload"
+        const val KEY_ENCRYPTION_KEY = "encryption_key"
+        const val KEY_STANDBY_START_TIME = "standby_start_time"
+        const val KEY_SENT_COUNT = "sent_count"
+        const val KEY_LAST_DEV_NOTIF_TIME = "last_dev_notif_time"
 
         @Volatile
         private var instance: ConfigRepository? = null

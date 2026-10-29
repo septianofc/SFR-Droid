@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.ApiCallResult
+import com.example.data.model.DeveloperNotification
 import com.example.data.model.EventLogItem
 import com.example.data.model.InstalledAppItem
 import com.example.data.model.LogEventType
@@ -12,10 +13,12 @@ import com.example.data.model.SfrConfig
 import com.example.data.repository.AppListRepository
 import com.example.data.repository.AppLogRepository
 import com.example.data.repository.ConfigRepository
+import com.example.service.DeveloperUpdateChecker
+import com.example.service.StandbyForegroundService
 import com.example.service.WebhookDispatcher
+import com.example.util.EncryptionHelper
 import com.example.util.PermissionHelper
 import com.example.worker.HeartbeatWorker
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -28,7 +31,13 @@ enum class AppFilter {
 }
 
 enum class AppScreen {
-    WIZARD, DASHBOARD, LOGS_VIEWER
+    DASHBOARD,
+    WIZARD,
+    APP_PICKER,
+    ENCRYPTION,
+    DEVELOPER_INFO,
+    PRIVACY_POLICY,
+    TERMS_OF_SERVICE
 }
 
 data class MainUiState(
@@ -64,6 +73,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         refreshPermissions()
         loadInstalledApps()
+        com.example.worker.DeveloperUpdateWorker.schedule(application)
+        checkDeveloperNotifications()
+
+        // If standby was active upon startup, ensure foreground service is running
+        if (configRepo.getConfig().isStandby) {
+            StandbyForegroundService.start(application)
+        }
 
         viewModelScope.launch {
             configRepo.configFlow.collect { newConfig ->
@@ -107,6 +123,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         val newConfig = _uiState.value.config.copy(selectedApps = currentSelected)
         configRepo.saveConfig(newConfig)
+        StandbyForegroundService.updateStats(getApplication())
     }
 
     fun selectAllFiltered(visiblePackages: List<String>) {
@@ -114,11 +131,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         currentSelected.addAll(visiblePackages)
         val newConfig = _uiState.value.config.copy(selectedApps = currentSelected)
         configRepo.saveConfig(newConfig)
+        StandbyForegroundService.updateStats(getApplication())
     }
 
     fun deselectAll() {
         val newConfig = _uiState.value.config.copy(selectedApps = emptySet())
         configRepo.saveConfig(newConfig)
+        StandbyForegroundService.updateStats(getApplication())
     }
 
     fun toggleField(fieldKey: String) {
@@ -153,20 +172,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Encryption settings
+    fun setEncryptToken(enabled: Boolean) {
+        val newConfig = _uiState.value.config.copy(encryptToken = enabled)
+        configRepo.saveConfig(newConfig)
+    }
+
+    fun setEncryptPayload(enabled: Boolean) {
+        val newConfig = _uiState.value.config.copy(encryptPayload = enabled)
+        configRepo.saveConfig(newConfig)
+    }
+
+    fun setEncryptionKey(key: String) {
+        val newConfig = _uiState.value.config.copy(encryptionKey = key)
+        configRepo.saveConfig(newConfig)
+    }
+
+    fun generateNewEncryptionKey() {
+        val randomKey = EncryptionHelper.generateRandomKey()
+        setEncryptionKey(randomKey)
+    }
+
     fun setStandby(enabled: Boolean) {
         configRepo.setStandby(enabled)
-        HeartbeatWorker.schedule(getApplication(), enabled, _uiState.value.config.intervalMinutes)
+        val app = getApplication<Application>()
+
+        if (enabled) {
+            StandbyForegroundService.start(app)
+            HeartbeatWorker.schedule(app, true, _uiState.value.config.intervalMinutes)
+        } else {
+            StandbyForegroundService.stop(app)
+            HeartbeatWorker.schedule(app, false, _uiState.value.config.intervalMinutes)
+        }
+
         logRepo.addLog(
             EventLogItem(
                 type = LogEventType.SYSTEM_EVENT,
                 title = if (enabled) "Standby Diaktifkan" else "Standby Dinonaktifkan",
                 details = if (enabled)
-                    "Aplikasi siap meneruskan notifikasi dari ${_uiState.value.config.selectedApps.size} aplikasi terpilih."
+                    "Notifikasi akan diteruskan secara realtime. Notifikasi sistem aktif di bilah status."
                 else
-                    "Penerusan notifikasi dihentikan sementara.",
+                    "Penerusan notifikasi dihentikan.",
                 success = true
             )
         )
+    }
+
+    fun resetSentCounter() {
+        configRepo.resetSentCount()
+        StandbyForegroundService.updateStats(getApplication())
     }
 
     fun testEndpoint(customEndpoint: String? = null, customToken: String? = null) {
@@ -220,6 +274,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 success = true
             )
         )
+    }
+
+    fun checkDeveloperNotifications() {
+        viewModelScope.launch {
+            try {
+                DeveloperUpdateChecker.checkDeveloperUpdates(getApplication())
+            } catch (_: Exception) {}
+        }
     }
 
     fun nextWizardStep() {

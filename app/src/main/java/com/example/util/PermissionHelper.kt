@@ -1,10 +1,13 @@
 package com.example.util
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -104,27 +107,52 @@ object PermissionHelper {
         try {
             val channelId = "sfr_test_channel"
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val audioAttributes = AudioAttributes.Builder()
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_COMMUNICATION_INSTANT)
+                    .build()
+
                 val channel = NotificationChannel(
                     channelId,
                     "SFR Droid Simulasi Pengujian",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Channel untuk menguji tangkapan notifikasi SFR Droid"
+                    description = "Channel untuk menguji tangkapan notifikasi SFR Droid dengan suara"
+                    enableVibration(true)
+                    vibrationPattern = longArrayOf(0, 300, 150, 300)
+                    setSound(soundUri, audioAttributes)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        setBypassDnd(true)
+                    }
+                    lockscreenVisibility = Notification.VISIBILITY_PUBLIC
                 }
                 notificationManager.createNotificationChannel(channel)
             }
 
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(R.drawable.sfr_logo)
+                .setColor(0xFF42A5F5.toInt())
                 .setContentTitle(title)
                 .setContentText(text)
                 .setSubText(appName)
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setSound(soundUri)
+                .setVibrate(longArrayOf(0, 300, 150, 300))
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setAutoCancel(true)
 
             notificationManager.notify((System.currentTimeMillis() % 10000).toInt(), builder.build())
+        } catch (_: Exception) {}
+    }
+
+    fun playNotificationSound(context: Context) {
+        try {
+            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val ringtone = RingtoneManager.getRingtone(context.applicationContext, soundUri)
+            ringtone?.play()
         } catch (_: Exception) {}
     }
 }
