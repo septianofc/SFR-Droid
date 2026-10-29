@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout project
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Setup Java
@@ -26,15 +26,37 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
-        with:
-          gradle-version: '9.3.1'
 
-      - name: Build Debug APK
-        run: gradle assembleDebug --stacktrace
+      - name: Check project files
+        run: |
+          echo "=== PROJECT FILES ==="
+          ls -la
+          echo "=== GRADLE WRAPPER ==="
+          ls -la gradlew gradle/wrapper 2>&1 || true
 
-      - name: Upload APK
+      - name: Build Debug APK with detailed log
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          gradle --no-daemon --stacktrace --info assembleDebug 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: SFR-Droid-APK
+          name: sfr-droid-build-log
+          path: build.log
+          if-no-files-found: warn
+
+      - name: Upload APK
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sfr-droid-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Fail if build failed
+        if: steps.build.outcome != 'success'
+        run: exit 1
