@@ -22,6 +22,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+import android.content.pm.ServiceInfo
+import androidx.core.app.ServiceCompat
+
 class StandbyForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.Default + Job())
@@ -40,7 +43,8 @@ class StandbyForegroundService : Service() {
                 PowerManager.PARTIAL_WAKE_LOCK,
                 "SFRDroid:StandbyWakeLock"
             ).apply {
-                acquire(10 * 60 * 1000L)
+                setReferenceCounted(false)
+                acquire(24 * 60 * 60 * 1000L) // Safe partial wakelock for persistent background
             }
         } catch (_: Exception) {}
     }
@@ -54,7 +58,23 @@ class StandbyForegroundService : Service() {
             return START_NOT_STICKY
         }
 
-        startForeground(NOTIFICATION_ID, buildOngoingNotification())
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(
+                    this,
+                    NOTIFICATION_ID,
+                    buildOngoingNotification(),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, buildOngoingNotification())
+            }
+        } catch (e: Exception) {
+            try {
+                startForeground(NOTIFICATION_ID, buildOngoingNotification())
+            } catch (_: Exception) {}
+        }
+
         startTickerLoop()
 
         return START_STICKY
@@ -65,13 +85,14 @@ class StandbyForegroundService : Service() {
         tickerJob = serviceScope.launch {
             var counter = 0
             while (isActive) {
-                delay(1000L)
-                counter++
+                delay(10000L) // 10s interval prevents Android 13/14 notification rate limiting
+                counter += 10
 
-                // Update notification text every 1 second
-                val notification = buildOngoingNotification()
-                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                nm.notify(NOTIFICATION_ID, notification)
+                try {
+                    val notification = buildOngoingNotification()
+                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                    nm.notify(NOTIFICATION_ID, notification)
+                } catch (_: Exception) {}
 
                 // Every 60 seconds, check developer notifications in background
                 if (counter % 60 == 0) {
@@ -141,6 +162,9 @@ class StandbyForegroundService : Service() {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setContentIntent(openAppPendingIntent)
+            .setUsesChronometer(startTime > 0)
+            .setWhen(if (startTime > 0) startTime else System.currentTimeMillis())
+            .setShowWhen(true)
             .addAction(android.R.drawable.ic_media_pause, "HENTIKAN (STOP)", stopPendingIntent)
             .addAction(android.R.drawable.ic_menu_view, "BUKA APLIKASI", openAppPendingIntent)
 

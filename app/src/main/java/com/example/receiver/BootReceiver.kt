@@ -15,6 +15,7 @@ class BootReceiver : BroadcastReceiver() {
                 HeartbeatWorker.schedule(context, true, config.intervalMinutes)
                 StandbyForegroundService.start(context)
             }
+            com.example.service.SFRNotificationListenerService.ensureRebind(context)
         }
     }
 }

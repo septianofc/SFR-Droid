@@ -105,9 +105,9 @@ object PermissionHelper {
 
     fun triggerLocalTestNotification(context: Context, appName: String, title: String, text: String) {
         try {
-            val channelId = "sfr_test_channel"
+            val channelId = "sfr_test_custom_audio_v5"
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.sfr_droid}")
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val audioAttributes = AudioAttributes.Builder()
@@ -117,10 +117,10 @@ object PermissionHelper {
 
                 val channel = NotificationChannel(
                     channelId,
-                    "SFR Droid Simulasi Pengujian",
+                    "SFR Droid Simulasi Pengujian Bersuara",
                     NotificationManager.IMPORTANCE_HIGH
                 ).apply {
-                    description = "Channel untuk menguji tangkapan notifikasi SFR Droid dengan suara"
+                    description = "Channel untuk menguji tangkapan notifikasi SFR Droid dengan suara khas SFR Droid"
                     enableVibration(true)
                     vibrationPattern = longArrayOf(0, 300, 150, 300)
                     setSound(soundUri, audioAttributes)
@@ -145,14 +145,25 @@ object PermissionHelper {
                 .setAutoCancel(true)
 
             notificationManager.notify((System.currentTimeMillis() % 10000).toInt(), builder.build())
+
+            // Force play custom voice "SFR Droid" audio tone immediately
+            playNotificationSound(context)
         } catch (_: Exception) {}
     }
 
     fun playNotificationSound(context: Context) {
         try {
-            val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            val ringtone = RingtoneManager.getRingtone(context.applicationContext, soundUri)
-            ringtone?.play()
-        } catch (_: Exception) {}
+            val mediaPlayer = android.media.MediaPlayer.create(context.applicationContext, R.raw.sfr_droid)
+            mediaPlayer?.setOnCompletionListener { mp ->
+                try { mp.release() } catch (_: Exception) {}
+            }
+            mediaPlayer?.start()
+        } catch (_: Exception) {
+            try {
+                val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                val ringtone = RingtoneManager.getRingtone(context.applicationContext, soundUri)
+                ringtone?.play()
+            } catch (_: Exception) {}
+        }
     }
 }

@@ -27,7 +27,7 @@ import java.nio.charset.StandardCharsets
 object DeveloperUpdateChecker {
 
     const val UPDATE_URL = "https://sfrdroid.septianfr.web.id/notif"
-    const val CHANNEL_ID = "sfr_dev_updates_channel"
+    const val CHANNEL_ID = "sfr_dev_custom_audio_v5"
     private const val NOTIF_ID_BASE = 5000
 
     suspend fun checkDeveloperUpdates(context: Context): List<DeveloperNotification> = withContext(Dispatchers.IO) {
@@ -132,7 +132,7 @@ object DeveloperUpdateChecker {
 
     fun postDeveloperNotification(context: Context, item: DeveloperNotification) {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.sfr_droid}")
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val audioAttributes = AudioAttributes.Builder()
@@ -145,7 +145,7 @@ object DeveloperUpdateChecker {
                 "Pembaruan & Notifikasi Resmi SFR Droid",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notifikasi pembaruan dan promosi resmi dari developer"
+                description = "Notifikasi pembaruan dan promosi resmi dari developer dengan suara khas SFR Droid"
                 enableVibration(true)
                 vibrationPattern = longArrayOf(0, 300, 150, 300)
                 setSound(soundUri, audioAttributes)
@@ -195,5 +195,10 @@ object DeveloperUpdateChecker {
 
         val notifId = NOTIF_ID_BASE + (Math.abs(item.id.hashCode()) % 1000)
         notificationManager.notify(notifId, builder.build())
+
+        // Ensure audible alert is triggered
+        try {
+            com.example.util.PermissionHelper.playNotificationSound(context)
+        } catch (_: Exception) {}
     }
 }

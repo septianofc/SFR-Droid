@@ -1,8 +1,11 @@
 package com.example.service
 
 import android.app.Notification
+import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.PowerManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.example.data.model.EventLogItem
@@ -18,6 +21,15 @@ import org.json.JSONObject
 class SFRNotificationListenerService : NotificationListenerService() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        try {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SFRDroid:ListenerWakeLock")
+        } catch (_: Exception) {}
+    }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
@@ -36,11 +48,17 @@ class SFRNotificationListenerService : NotificationListenerService() {
         AppLogRepository.getInstance().addLog(
             EventLogItem(
                 type = LogEventType.SYSTEM_EVENT,
-                title = "Akses Notifikasi Terputus",
-                details = "Sistem Android menonaktifkan listener. Periksa kembali izin notifikasi.",
+                title = "Akses Notifikasi Terputus (Meminta Sambung Ulang)",
+                details = "Mencoba menyambungkan kembali listener notifikasi ke sistem Android...",
                 success = false
             )
         )
+        // Auto-rebind to system server on Android 7.0+ (API 24+)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                requestRebind(ComponentName(this, SFRNotificationListenerService::class.java))
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -69,8 +87,13 @@ class SFRNotificationListenerService : NotificationListenerService() {
             ?: extras.getCharSequence(Notification.EXTRA_BIG_TEXT, "")?.toString()
             ?: ""
 
-        // Skip empty spam/ongoing system notifications if there is neither title nor text
+        // Skip empty system alerts if there is neither title nor text
         if (title.isBlank() && text.isBlank()) return
+
+        // Hold partial wakelock for 6 seconds so CPU doesn't sleep while posting HTTP request
+        try {
+            wakeLock?.acquire(6000L)
+        } catch (_: Exception) {}
 
         val pm = applicationContext.packageManager
         val appName = try {
@@ -104,14 +127,33 @@ class SFRNotificationListenerService : NotificationListenerService() {
         )
 
         serviceScope.launch {
-            WebhookDispatcher.postJson(
-                context = applicationContext,
-                endpoint = config.endpoint,
-                token = config.token,
-                payload = payload,
-                eventTitle = "Forward Notifikasi ($appName)",
-                isTest = false
-            )
+            try {
+                WebhookDispatcher.postJson(
+                    context = applicationContext,
+                    endpoint = config.endpoint,
+                    token = config.token,
+                    payload = payload,
+                    eventTitle = "Forward Notifikasi ($appName)",
+                    isTest = false
+                )
+            } finally {
+                try {
+                    if (wakeLock?.isHeld == true) {
+                        wakeLock?.release()
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
+    companion object {
+        fun ensureRebind(context: Context) {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    val comp = ComponentName(context, SFRNotificationListenerService::class.java)
+                    NotificationListenerService.requestRebind(comp)
+                }
+            } catch (_: Exception) {}
         }
     }
 }

@@ -151,7 +151,7 @@ fun AppDrawerContent(
             )
 
             DrawerNavItem(
-                label = "Ubah Aplikasi (Full Layar)",
+                label = "Ubah Aplikasi Sumber",
                 icon = Icons.Default.Apps,
                 isSelected = currentScreen == AppScreen.APP_PICKER,
                 testTag = "drawer_item_apps",
@@ -162,7 +162,7 @@ fun AppDrawerContent(
             )
 
             DrawerNavItem(
-                label = "Halaman Enkripsi (Full Layar)",
+                label = "Keamanan & Enkripsi",
                 icon = Icons.Default.Lock,
                 isSelected = currentScreen == AppScreen.ENCRYPTION,
                 testTag = "drawer_item_encryption",
@@ -173,7 +173,7 @@ fun AppDrawerContent(
             )
 
             DrawerNavItem(
-                label = "Wizard Ulang (Full Layar)",
+                label = "Wizard Pengaturan",
                 icon = Icons.Default.Tune,
                 isSelected = currentScreen == AppScreen.WIZARD,
                 testTag = "drawer_item_wizard",
@@ -186,7 +186,7 @@ fun AppDrawerContent(
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
 
             DrawerNavItem(
-                label = "Info Developer (Full Layar)",
+                label = "Informasi Developer",
                 icon = Icons.Default.Person,
                 isSelected = currentScreen == AppScreen.DEVELOPER_INFO,
                 testTag = "drawer_item_developer",
@@ -197,7 +197,7 @@ fun AppDrawerContent(
             )
 
             DrawerNavItem(
-                label = "Kebijakan Privasi (Full Layar)",
+                label = "Kebijakan Privasi",
                 icon = Icons.Default.Shield,
                 isSelected = currentScreen == AppScreen.PRIVACY_POLICY,
                 testTag = "drawer_item_privacy",
@@ -208,7 +208,7 @@ fun AppDrawerContent(
             )
 
             DrawerNavItem(
-                label = "Persyaratan Penggunaan (Full Layar)",
+                label = "Persyaratan Penggunaan",
                 icon = Icons.Default.Gavel,
                 isSelected = currentScreen == AppScreen.TERMS_OF_SERVICE,
                 testTag = "drawer_item_terms",

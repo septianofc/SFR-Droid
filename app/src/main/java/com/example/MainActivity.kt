@@ -63,6 +63,7 @@ fun SfrDroidApp(
             if (event == Lifecycle.Event.ON_RESUME) {
                 viewModel.refreshPermissions()
                 viewModel.checkDeveloperNotifications()
+                com.example.service.SFRNotificationListenerService.ensureRebind(lifecycleOwner as? android.content.Context ?: return@LifecycleEventObserver)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
