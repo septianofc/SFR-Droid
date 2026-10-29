@@ -1,0 +1,6 @@
+{
+  "name": "SFR Droid",
+  "description": "Forwarder notifikasi Android dan webhook bridge dengan wizard pengaturan bertahap, pemilih aplikasi terpasang, dan heartbeat otomatis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

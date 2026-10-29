@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">SFR Droid</string>
+    <string name="notification_listener_service_label">SFR Droid Akses Notifikasi</string>
+</resources>
