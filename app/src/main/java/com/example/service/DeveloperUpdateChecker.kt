@@ -131,6 +131,9 @@ object DeveloperUpdateChecker {
     }
 
     fun postDeveloperNotification(context: Context, item: DeveloperNotification) {
+        if (!androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return
+        }
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val soundUri = Uri.parse("android.resource://${context.packageName}/${R.raw.sfr_droid}")
 

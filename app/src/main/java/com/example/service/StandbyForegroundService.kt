@@ -7,23 +7,27 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.example.MainActivity
 import com.example.R
+import com.example.data.model.EventLogItem
+import com.example.data.model.LogEventType
+import com.example.data.repository.AppLogRepository
 import com.example.data.repository.ConfigRepository
+import com.example.receiver.SFRAppWidgetProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.Locale
-
-import android.content.pm.ServiceInfo
-import androidx.core.app.ServiceCompat
 
 class StandbyForegroundService : Service() {
 
@@ -44,7 +48,7 @@ class StandbyForegroundService : Service() {
                 "SFRDroid:StandbyWakeLock"
             ).apply {
                 setReferenceCounted(false)
-                acquire(24 * 60 * 60 * 1000L) // Safe partial wakelock for persistent background
+                acquire(24 * 60 * 60 * 1000L)
             }
         } catch (_: Exception) {}
     }
@@ -69,13 +73,19 @@ class StandbyForegroundService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, buildOngoingNotification())
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             try {
                 startForeground(NOTIFICATION_ID, buildOngoingNotification())
             } catch (_: Exception) {}
         }
 
         startTickerLoop()
+        SFRAppWidgetProvider.updateAllWidgets(applicationContext)
+
+        // Launch Floating Bubble if enabled
+        if (config.floatingBubbleEnabled) {
+            FloatingBubbleService.start(applicationContext)
+        }
 
         return START_STICKY
     }
@@ -83,19 +93,48 @@ class StandbyForegroundService : Service() {
     private fun startTickerLoop() {
         tickerJob?.cancel()
         tickerJob = serviceScope.launch {
-            var counter = 0
+            var secondCount = 0
             while (isActive) {
-                delay(10000L) // 10s interval prevents Android 13/14 notification rate limiting
-                counter += 10
+                delay(1000L) // Real-time 1-second continuous ticker
+                secondCount++
 
-                try {
-                    val notification = buildOngoingNotification()
-                    val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                    nm.notify(NOTIFICATION_ID, notification)
-                } catch (_: Exception) {}
+                val config = ConfigRepository.getInstance(applicationContext).getConfig()
+                if (!config.isStandby) break
 
-                // Every 60 seconds, check developer notifications in background
-                if (counter % 60 == 0) {
+                // Update notification text every 5 seconds to avoid Android system rate limiting
+                if (secondCount % 5 == 0) {
+                    try {
+                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                        nm.notify(NOTIFICATION_ID, buildOngoingNotification())
+                    } catch (_: Exception) {}
+                }
+
+                // Check heartbeat ping if enabled
+                val hbInterval = config.heartbeatIntervalSeconds
+                if (hbInterval > 0 && secondCount % hbInterval == 0 && config.endpoint.isNotBlank()) {
+                    val uptimeStr = formatUptime(config.standbyStartTime)
+                    val hbPayload = JSONObject().apply {
+                        put("event", "heartbeat")
+                        put("app", "SFR Droid")
+                        put("status", "standby_active")
+                        put("uptime", uptimeStr)
+                        put("sent_count", config.sentNotificationsCount)
+                        put("timestamp", System.currentTimeMillis())
+                    }
+                    try {
+                        WebhookDispatcher.postJson(
+                            context = applicationContext,
+                            endpoint = config.endpoint,
+                            token = config.token,
+                            payload = hbPayload,
+                            eventTitle = "Heartbeat Ping ($uptimeStr)",
+                            isTest = false
+                        )
+                    } catch (_: Exception) {}
+                }
+
+                // Check developer notification announcements every 60 seconds
+                if (secondCount % 60 == 0) {
                     try {
                         DeveloperUpdateChecker.checkDeveloperUpdates(applicationContext)
                     } catch (_: Exception) {}
@@ -104,29 +143,33 @@ class StandbyForegroundService : Service() {
         }
     }
 
-    private fun buildOngoingNotification(): Notification {
-        val config = ConfigRepository.getInstance(applicationContext).getConfig()
-        val startTime = config.standbyStartTime
+    private fun formatUptime(startTime: Long): String {
         val now = System.currentTimeMillis()
         val elapsedMs = if (startTime > 0) (now - startTime).coerceAtLeast(0L) else 0L
-
         val seconds = (elapsedMs / 1000) % 60
         val minutes = (elapsedMs / (1000 * 60)) % 60
         val hours = elapsedMs / (1000 * 60 * 60)
-        val uptimeStr = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+        return String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+    }
+
+    private fun buildOngoingNotification(): Notification {
+        val config = ConfigRepository.getInstance(applicationContext).getConfig()
+        val startTime = config.standbyStartTime
+        val uptimeStr = formatUptime(startTime)
 
         val sentCount = config.sentNotificationsCount
-        val appsCount = config.selectedApps.size
+        val appsCount = if (config.forwardAllApps) "Semua Aplikasi" else "${config.selectedApps.size} aplikasi"
         val isEncrypted = config.encryptPayload || config.encryptToken
 
-        val title = "🟢 Standby Mode Aktif • SFR Droid"
-        val shortContent = "📡 $sentCount Terkirim  •  ⏱️ $uptimeStr  •  📱 $appsCount Aplikasi"
+        val title = "🟢 Standby Mode • SFR Droid"
+        val shortContent = "📡 $sentCount Terkirim  •  ⏱️ $uptimeStr  •  📱 $appsCount"
 
         val bigText = StringBuilder().apply {
             append("⚡ Status: 🟢 AKTIF MEMANTAU REAL-TIME\n")
-            append("📡 Notifikasi Terkirim ke Webhook: $sentCount\n")
+            append("📡 Jumlah Notifikasi Terkirim ke Webhook: $sentCount\n")
             append("⏱️ Lama Waktu Diaktifkan: $uptimeStr\n")
-            append("📱 Jumlah Aplikasi Sumber: $appsCount aplikasi\n")
+            append("📱 Mode Sumber: $appsCount\n")
+            append("⚙️ Format Webhook: ${config.formatMode.name} (${config.httpMethod})\n")
             append("🔒 Keamanan: ${if (isEncrypted) "Terenkripsi AES-256" else "Standar (No Enc)"}\n")
             append("🌐 Endpoint: ${config.endpoint.ifBlank { "Belum diatur" }}")
         }.toString()
@@ -193,6 +236,8 @@ class StandbyForegroundService : Service() {
                 wakeLock?.release()
             }
         } catch (_: Exception) {}
+        FloatingBubbleService.stop(applicationContext)
+        SFRAppWidgetProvider.updateAllWidgets(applicationContext)
         super.onDestroy()
     }
 
@@ -207,6 +252,7 @@ class StandbyForegroundService : Service() {
             } else {
                 context.startService(intent)
             }
+            SFRAppWidgetProvider.updateAllWidgets(context)
         }
 
         fun stop(context: Context) {
@@ -214,6 +260,8 @@ class StandbyForegroundService : Service() {
             context.stopService(intent)
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.cancel(NOTIFICATION_ID)
+            FloatingBubbleService.stop(context)
+            SFRAppWidgetProvider.updateAllWidgets(context)
         }
 
         fun updateStats(context: Context) {
@@ -231,6 +279,7 @@ class StandbyForegroundService : Service() {
             } else {
                 nm.cancel(NOTIFICATION_ID)
             }
+            SFRAppWidgetProvider.updateAllWidgets(context)
         }
     }
 }

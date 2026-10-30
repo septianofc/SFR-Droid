@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -247,6 +248,12 @@ fun DashboardScreen(
                     },
                     onOpenWizard = {
                         viewModel.startWizard()
+                    },
+                    onOpenWebhookTemplate = {
+                        viewModel.navigateTo(AppScreen.WEBHOOK_TEMPLATE)
+                    },
+                    onOpenFcm = {
+                        viewModel.navigateTo(AppScreen.FCM_SETUP)
                     }
                 )
             }
@@ -727,7 +734,9 @@ fun QuickActionsCard(
     onOpenEncryption: () -> Unit,
     onOpenDeveloperInfo: () -> Unit,
     onOpenApps: () -> Unit,
-    onOpenWizard: () -> Unit
+    onOpenWizard: () -> Unit,
+    onOpenWebhookTemplate: () -> Unit,
+    onOpenFcm: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -768,6 +777,35 @@ fun QuickActionsCard(
                     Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Tes Suara", fontSize = 12.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenWebhookTemplate,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("quick_webhook_template")
+                ) {
+                    Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Shortcode & Multi", fontSize = 11.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onOpenFcm,
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("quick_fcm_setup")
+                ) {
+                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Push FCM & PHP", fontSize = 11.sp)
                 }
             }
 

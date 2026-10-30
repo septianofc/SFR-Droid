@@ -12,10 +12,9 @@
 #   public *;
 #}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Preserve data models, services, receivers, and crypto
+-keep class com.example.data.model.** { *; }
+-keep class com.example.service.** { *; }
+-keep class com.example.receiver.** { *; }
+-keep class com.example.util.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile

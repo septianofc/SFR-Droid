@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">SFR Droid</string>
     <string name="notification_listener_service_label">SFR Droid Akses Notifikasi</string>
+    <string name="widget_1x1_desc">SFR Droid Tombol Cepat Standby (1x1)</string>
+    <string name="widget_2x2_desc">SFR Droid Monitor &amp; Kontrol Standby (2x2)</string>
+    <string name="widget_full_desc">SFR Droid Dashboard Lengkap Live Monitor</string>
 </resources>

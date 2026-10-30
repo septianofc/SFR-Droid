@@ -9,19 +9,52 @@ data class InstalledAppItem(
     val icon: Drawable? = null
 )
 
+enum class DispatchMode {
+    SINGLE_WEBHOOK,
+    MULTI_WEBHOOK
+}
+
+enum class WebhookFormatMode {
+    DEFAULT_JSON,
+    CUSTOM_TEMPLATE
+}
+
+data class AppWebhookRule(
+    val packageName: String = "",
+    val appName: String = "",
+    val endpoint: String = "",
+    val method: String = "POST",
+    val customTemplate: String = "",
+    val token: String = "",
+    val isEnabled: Boolean = true
+)
+
 data class SfrConfig(
     val endpoint: String = "",
     val token: String = "",
     val intervalMinutes: Int = 15,
     val isStandby: Boolean = false,
     val selectedApps: Set<String> = emptySet(),
+    val forwardAllApps: Boolean = false,
     val selectedFields: Set<String> = setOf("app", "package", "title", "message", "timestamp"),
     val wizardCompleted: Boolean = false,
     val encryptToken: Boolean = false,
     val encryptPayload: Boolean = false,
     val encryptionKey: String = "",
     val standbyStartTime: Long = 0L,
-    val sentNotificationsCount: Int = 0
+    val sentNotificationsCount: Int = 0,
+    // Advanced & New Features
+    val dispatchMode: DispatchMode = DispatchMode.SINGLE_WEBHOOK,
+    val formatMode: WebhookFormatMode = WebhookFormatMode.DEFAULT_JSON,
+    val httpMethod: String = "POST",
+    val customUrlTemplate: String = "",
+    val customBodyTemplate: String = "{\n  \"appname\": \"{app}\",\n  \"msg\": \"{message}\",\n  \"sender\": \"{title}\",\n  \"waktu\": \"{time}\",\n  \"paket\": \"{package}\"\n}",
+    val appWebhookRules: Map<String, AppWebhookRule> = emptyMap(),
+    val heartbeatIntervalSeconds: Int = 1, // 1 detik ticker/heartbeat
+    val floatingBubbleEnabled: Boolean = false,
+    val appLockEnabled: Boolean = false,
+    val fcmToken: String = "",
+    val installTimestamp: Long = 0L
 )
 
 data class DeveloperNotification(

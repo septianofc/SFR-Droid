@@ -152,6 +152,9 @@ object PermissionHelper {
     }
 
     fun playNotificationSound(context: Context) {
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return
+        }
         try {
             val mediaPlayer = android.media.MediaPlayer.create(context.applicationContext, R.raw.sfr_droid)
             mediaPlayer?.setOnCompletionListener { mp ->
