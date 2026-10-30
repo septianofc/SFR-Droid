@@ -121,15 +121,19 @@ fun SfrDroidApp(
 
             when {
                 scheme == "sfrdroid" -> {
-                    when (host) {
-                        "apps" -> viewModel.navigateTo(AppScreen.APP_PICKER)
-                        "encryption" -> viewModel.navigateTo(AppScreen.ENCRYPTION)
-                        "webhook", "template" -> viewModel.navigateTo(AppScreen.WEBHOOK_TEMPLATE)
-                        "fcm" -> viewModel.navigateTo(AppScreen.FCM_SETUP)
-                        "wizard" -> viewModel.navigateTo(AppScreen.WIZARD)
-                        "developer" -> viewModel.navigateTo(AppScreen.DEVELOPER_INFO)
-                        "privacy" -> viewModel.navigateTo(AppScreen.PRIVACY_POLICY)
-                        "terms" -> viewModel.navigateTo(AppScreen.TERMS_OF_SERVICE)
+                    when (host?.lowercase()) {
+                        "apps", "picker" -> viewModel.navigateTo(AppScreen.APP_PICKER)
+                        "encryption", "security", "lock" -> viewModel.navigateTo(AppScreen.ENCRYPTION)
+                        "webhook", "template", "routing" -> viewModel.navigateTo(AppScreen.WEBHOOK_TEMPLATE)
+                        "owner", "dev", "fcm", "backend" -> viewModel.navigateTo(AppScreen.FCM_SETUP)
+                        "wizard", "setup" -> viewModel.navigateTo(AppScreen.WIZARD)
+                        "developer", "devinfo", "author" -> viewModel.navigateTo(AppScreen.DEVELOPER_INFO)
+                        "privacy", "kebijakan" -> viewModel.navigateTo(AppScreen.PRIVACY_POLICY)
+                        "terms", "persyaratan" -> viewModel.navigateTo(AppScreen.TERMS_OF_SERVICE)
+                        "overlay", "bubble" -> {
+                            viewModel.navigateTo(AppScreen.DASHBOARD)
+                            viewModel.setFloatingBubble(true)
+                        }
                         else -> viewModel.navigateTo(AppScreen.DASHBOARD)
                     }
                 }

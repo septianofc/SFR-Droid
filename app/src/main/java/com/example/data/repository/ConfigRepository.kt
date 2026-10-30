@@ -112,7 +112,9 @@ class ConfigRepository(private val context: Context) {
             }
         } catch (_: Exception) {}
 
-        val heartbeatSec = prefs.getInt(KEY_HEARTBEAT_SEC, 1)
+        val rawHeartbeat = prefs.getInt(KEY_HEARTBEAT_SEC, 900)
+        // Auto-heal old 1-second setting to 900s (15 min) to prevent network saturation and crash
+        val heartbeatSec = if (rawHeartbeat in 1..14) 900 else rawHeartbeat
         val floatingBubble = prefs.getBoolean(KEY_FLOATING_BUBBLE, false)
         val appLock = prefs.getBoolean(KEY_APP_LOCK, false)
         val fcmToken = prefs.getString(KEY_FCM_TOKEN, "") ?: ""

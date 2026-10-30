@@ -114,7 +114,46 @@
             </intent-filter>
         </receiver>
 
-        <!-- App Widget Receiver -->
+        <!-- App Widget Receivers (1x1, 2x2, Full) -->
+        <receiver
+            android:name=".receiver.SFRAppWidgetProvider1x1"
+            android:label="SFR Droid (1x1 Quick Toggle)"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.ACTION_WIDGET_TOGGLE_STANDBY" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_1x1" />
+        </receiver>
+
+        <receiver
+            android:name=".receiver.SFRAppWidgetProvider2x2"
+            android:label="SFR Droid (2x2 Status &amp; Control)"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.ACTION_WIDGET_TOGGLE_STANDBY" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_2x2" />
+        </receiver>
+
+        <receiver
+            android:name=".receiver.SFRAppWidgetProviderFull"
+            android:label="SFR Droid (Full Dashboard)"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.ACTION_WIDGET_TOGGLE_STANDBY" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_full" />
+        </receiver>
+
         <receiver
             android:name=".receiver.SFRAppWidgetProvider"
             android:exported="true">

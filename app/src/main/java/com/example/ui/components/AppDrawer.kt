@@ -183,16 +183,6 @@ fun AppDrawerContent(
                 }
             )
 
-            DrawerNavItem(
-                label = "Push FCM & Script PHP",
-                icon = Icons.Default.AutoFixHigh,
-                isSelected = currentScreen == AppScreen.FCM_SETUP,
-                testTag = "drawer_item_fcm",
-                onClick = {
-                    onNavigate(AppScreen.FCM_SETUP)
-                    onCloseDrawer()
-                }
-            )
 
             DrawerNavItem(
                 label = "Wizard Pengaturan",

@@ -14,7 +14,7 @@ import com.example.data.repository.ConfigRepository
 import com.example.service.StandbyForegroundService
 import java.util.Locale
 
-class SFRAppWidgetProvider : AppWidgetProvider() {
+open class SFRAppWidgetProvider : AppWidgetProvider() {
 
     override fun onUpdate(
         context: Context,
@@ -22,7 +22,7 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
         appWidgetIds: IntArray
     ) {
         for (appWidgetId in appWidgetIds) {
-            updateAppWidget(context, appWidgetManager, appWidgetId)
+            updateAppWidget(context, appWidgetManager, appWidgetId, getWidgetType())
         }
     }
 
@@ -43,22 +43,40 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    protected open fun getWidgetType(): WidgetType = WidgetType.AUTO
+
+    enum class WidgetType {
+        AUTO, SIZE_1X1, SIZE_2X2, SIZE_FULL
+    }
+
     companion object {
         const val ACTION_TOGGLE_STANDBY = "com.example.ACTION_WIDGET_TOGGLE_STANDBY"
 
         fun updateAllWidgets(context: Context) {
             val appWidgetManager = AppWidgetManager.getInstance(context) ?: return
-            val componentName = ComponentName(context, SFRAppWidgetProvider::class.java)
-            val ids = appWidgetManager.getAppWidgetIds(componentName)
-            for (id in ids) {
-                updateAppWidget(context, appWidgetManager, id)
+
+            val providers = listOf(
+                Pair(ComponentName(context, SFRAppWidgetProvider1x1::class.java), WidgetType.SIZE_1X1),
+                Pair(ComponentName(context, SFRAppWidgetProvider2x2::class.java), WidgetType.SIZE_2X2),
+                Pair(ComponentName(context, SFRAppWidgetProviderFull::class.java), WidgetType.SIZE_FULL),
+                Pair(ComponentName(context, SFRAppWidgetProvider::class.java), WidgetType.AUTO)
+            )
+
+            for ((comp, type) in providers) {
+                try {
+                    val ids = appWidgetManager.getAppWidgetIds(comp)
+                    for (id in ids) {
+                        updateAppWidget(context, appWidgetManager, id, type)
+                    }
+                } catch (_: Exception) {}
             }
         }
 
-        private fun updateAppWidget(
+        fun updateAppWidget(
             context: Context,
             appWidgetManager: AppWidgetManager,
-            appWidgetId: Int
+            appWidgetId: Int,
+            forcedType: WidgetType = WidgetType.AUTO
         ) {
             val config = ConfigRepository.getInstance(context).getConfig()
             val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
@@ -92,10 +110,19 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
-            // Select layout based on widget width
-            val views = when {
-                minWidth < 90 -> {
-                    // 1x1 Widget
+            val typeToRender = when (forcedType) {
+                WidgetType.SIZE_1X1 -> WidgetType.SIZE_1X1
+                WidgetType.SIZE_2X2 -> WidgetType.SIZE_2X2
+                WidgetType.SIZE_FULL -> WidgetType.SIZE_FULL
+                WidgetType.AUTO -> when {
+                    minWidth < 90 -> WidgetType.SIZE_1X1
+                    minWidth < 220 -> WidgetType.SIZE_2X2
+                    else -> WidgetType.SIZE_FULL
+                }
+            }
+
+            val views = when (typeToRender) {
+                WidgetType.SIZE_1X1 -> {
                     RemoteViews(context.packageName, R.layout.widget_1x1).apply {
                         if (config.isStandby) {
                             setTextViewText(R.id.widget_1x1_status, "● AKTIF")
@@ -107,8 +134,7 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
                         setOnClickPendingIntent(R.id.widget_1x1_container, togglePendingIntent)
                     }
                 }
-                minWidth < 220 -> {
-                    // 2x2 Widget
+                WidgetType.SIZE_2X2 -> {
                     RemoteViews(context.packageName, R.layout.widget_2x2).apply {
                         if (config.isStandby) {
                             setTextViewText(R.id.widget_2x2_status_badge, "🟢 AKTIF")
@@ -125,8 +151,7 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
                         setOnClickPendingIntent(R.id.widget_2x2_container, openAppPendingIntent)
                     }
                 }
-                else -> {
-                    // Full Widget (4x2 / 4x3)
+                WidgetType.SIZE_FULL -> {
                     RemoteViews(context.packageName, R.layout.widget_full).apply {
                         if (config.isStandby) {
                             setTextViewText(R.id.widget_full_status, "🟢 Standby Aktif Memantau Real-Time")
@@ -149,9 +174,24 @@ class SFRAppWidgetProvider : AppWidgetProvider() {
                         setOnClickPendingIntent(R.id.widget_full_container, openAppPendingIntent)
                     }
                 }
+                else -> RemoteViews(context.packageName, R.layout.widget_1x1)
             }
 
-            appWidgetManager.updateAppWidget(appWidgetId, views)
+            try {
+                appWidgetManager.updateAppWidget(appWidgetId, views)
+            } catch (_: Exception) {}
         }
     }
+}
+
+class SFRAppWidgetProvider1x1 : SFRAppWidgetProvider() {
+    override fun getWidgetType(): WidgetType = WidgetType.SIZE_1X1
+}
+
+class SFRAppWidgetProvider2x2 : SFRAppWidgetProvider() {
+    override fun getWidgetType(): WidgetType = WidgetType.SIZE_2X2
+}
+
+class SFRAppWidgetProviderFull : SFRAppWidgetProvider() {
+    override fun getWidgetType(): WidgetType = WidgetType.SIZE_FULL
 }

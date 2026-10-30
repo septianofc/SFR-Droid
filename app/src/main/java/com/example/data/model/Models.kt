@@ -50,7 +50,7 @@ data class SfrConfig(
     val customUrlTemplate: String = "",
     val customBodyTemplate: String = "{\n  \"appname\": \"{app}\",\n  \"msg\": \"{message}\",\n  \"sender\": \"{title}\",\n  \"waktu\": \"{time}\",\n  \"paket\": \"{package}\"\n}",
     val appWebhookRules: Map<String, AppWebhookRule> = emptyMap(),
-    val heartbeatIntervalSeconds: Int = 1, // 1 detik ticker/heartbeat
+    val heartbeatIntervalSeconds: Int = 900, // Default 15 menit (0 = Off/Nonaktif)
     val floatingBubbleEnabled: Boolean = false,
     val appLockEnabled: Boolean = false,
     val fcmToken: String = "",

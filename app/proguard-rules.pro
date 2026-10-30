@@ -13,8 +13,8 @@
 #}
 
 # Preserve data models, services, receivers, and crypto
--keep class com.example.data.model.** { *; }
--keep class com.example.service.** { *; }
--keep class com.example.receiver.** { *; }
--keep class com.example.util.** { *; }
+-keep class com.example.** { *; }
+-keepclassmembers class com.example.** { *; }
+-keepattributes *Annotation*
+-dontwarn **
 

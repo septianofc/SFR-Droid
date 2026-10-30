@@ -1,10 +1,16 @@
 package com.example.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,13 +30,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PictureInPicture
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
@@ -103,6 +112,7 @@ fun DashboardScreen(
     val context = LocalContext.current
 
     var showTestDialog by remember { mutableStateOf(false) }
+    var showDeepLinkDialog by remember { mutableStateOf(false) }
 
     // Live Uptime Ticker
     var currentTimeMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -217,6 +227,26 @@ fun DashboardScreen(
                 )
             }
 
+            // Floating Bubble Overlay Controller Card
+            item {
+                FloatingBubbleCard(
+                    isEnabled = uiState.config.floatingBubbleEnabled,
+                    isStandby = uiState.config.isStandby,
+                    onToggle = {
+                        val canDraw = Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
+                        if (!canDraw) {
+                            val intent = Intent(
+                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:${context.packageName}")
+                            )
+                            context.startActivity(intent)
+                        } else {
+                            viewModel.setFloatingBubble(!uiState.config.floatingBubbleEnabled)
+                        }
+                    }
+                )
+            }
+
             // Real System Permission Health Status
             item {
                 PermissionStatusCard(
@@ -252,8 +282,8 @@ fun DashboardScreen(
                     onOpenWebhookTemplate = {
                         viewModel.navigateTo(AppScreen.WEBHOOK_TEMPLATE)
                     },
-                    onOpenFcm = {
-                        viewModel.navigateTo(AppScreen.FCM_SETUP)
+                    onOpenDeepLinks = {
+                        showDeepLinkDialog = true
                     }
                 )
             }
@@ -393,6 +423,16 @@ fun DashboardScreen(
                         Text("Tes Lagi")
                     }
                 }
+            }
+        )
+    }
+
+    if (showDeepLinkDialog) {
+        DeepLinkInfoDialog(
+            onDismiss = { showDeepLinkDialog = false },
+            onOpenDevFcm = {
+                showDeepLinkDialog = false
+                viewModel.navigateTo(AppScreen.FCM_SETUP)
             }
         )
     }
@@ -736,7 +776,7 @@ fun QuickActionsCard(
     onOpenApps: () -> Unit,
     onOpenWizard: () -> Unit,
     onOpenWebhookTemplate: () -> Unit,
-    onOpenFcm: () -> Unit
+    onOpenDeepLinks: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -798,14 +838,14 @@ fun QuickActionsCard(
                 }
 
                 OutlinedButton(
-                    onClick = onOpenFcm,
+                    onClick = onOpenDeepLinks,
                     modifier = Modifier
                         .weight(1f)
-                        .testTag("quick_fcm_setup")
+                        .testTag("quick_deep_links")
                 ) {
-                    Icon(Icons.Default.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Push FCM & PHP", fontSize = 11.sp)
+                    Text("Deep Link & Dev", fontSize = 11.sp)
                 }
             }
 
@@ -946,6 +986,163 @@ fun LogItemCard(item: EventLogItem) {
                     fontSize = 11.sp
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun FloatingBubbleCard(
+    isEnabled: Boolean,
+    isStandby: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (isEnabled) SfrPrimary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.PictureInPicture,
+                            contentDescription = null,
+                            tint = if (isEnabled) SfrPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Floating Overlay Bubble",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isEnabled) "Gelembung mengambang aktif di layar" else "Tampilkan counter kecil di atas aplikasi lain",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Switch(
+                checked = isEnabled,
+                onCheckedChange = { onToggle() },
+                modifier = Modifier.testTag("floating_bubble_toggle")
+            )
+        }
+    }
+}
+
+@Composable
+fun DeepLinkInfoDialog(
+    onDismiss: () -> Unit,
+    onOpenDevFcm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Link, contentDescription = null, tint = SfrPrimary)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Daftar Deep Link Lengkap")
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Gunakan skema sfrdroid:// atau URL website untuk membuka halaman secara langsung:",
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                DeepLinkRow(scheme = "sfrdroid://home", desc = "Halaman Dashboard Utama")
+                DeepLinkRow(scheme = "sfrdroid://apps", desc = "Pilih Aplikasi Sumber")
+                DeepLinkRow(scheme = "sfrdroid://webhook", desc = "Konfigurasi Shortcode & Multi Webhook")
+                DeepLinkRow(scheme = "sfrdroid://encryption", desc = "Pengaturan Enkripsi AES-256")
+                DeepLinkRow(scheme = "sfrdroid://overlay", desc = "Nyalakan Floating Overlay Bubble")
+                DeepLinkRow(scheme = "sfrdroid://wizard", desc = "Panduan Wizard Pengaturan Ulang")
+                DeepLinkRow(scheme = "sfrdroid://developer", desc = "Profil & Kontak Developer")
+                DeepLinkRow(scheme = "sfrdroid://privacy", desc = "Kebijakan Privasi Langsung")
+                DeepLinkRow(scheme = "sfrdroid://terms", desc = "Persyaratan Penggunaan")
+                DeepLinkRow(scheme = "sfrdroid://owner", desc = "Panel Rahasia Owner (FCM & Script PHP)")
+
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = "Contoh Perintah Terminal / ADB (Owner):",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "adb shell am start -a android.intent.action.VIEW -d \"sfrdroid://owner\"",
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Tutup")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onOpenDevFcm) {
+                Text("Buka Panel Owner", color = SfrPrimary, fontWeight = FontWeight.Bold)
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeepLinkRow(scheme: String, desc: String) {
+    Surface(
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            Text(
+                text = scheme,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = SfrPrimary
+            )
+            Text(
+                text = desc,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 10.sp
+            )
         }
     }
 }

@@ -109,9 +109,9 @@ class StandbyForegroundService : Service() {
                     } catch (_: Exception) {}
                 }
 
-                // Check heartbeat ping if enabled
+                // Check heartbeat ping if enabled (minimum 15 seconds, 0 = disabled)
                 val hbInterval = config.heartbeatIntervalSeconds
-                if (hbInterval > 0 && secondCount % hbInterval == 0 && config.endpoint.isNotBlank()) {
+                if (hbInterval >= 15 && secondCount % hbInterval == 0 && config.endpoint.isNotBlank()) {
                     val uptimeStr = formatUptime(config.standbyStartTime)
                     val hbPayload = JSONObject().apply {
                         put("event", "heartbeat")

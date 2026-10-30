@@ -96,12 +96,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
+import com.example.data.model.AppWebhookRule
+import com.example.data.model.DispatchMode
 import com.example.data.model.InstalledAppItem
+import com.example.data.model.SfrConfig
+import com.example.data.model.WebhookFormatMode
 import com.example.ui.components.AppIconImage
 import com.example.ui.viewmodel.AppFilter
 import com.example.ui.viewmodel.AppScreen
 import com.example.ui.viewmodel.MainViewModel
 import com.example.util.PermissionHelper
+import com.example.util.ShortcodeHelper
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -248,14 +253,19 @@ fun WizardScreen(
                     )
                     3 -> WizardStepEndpoint(
                         subtitle = stepSubtitles[3],
-                        endpoint = uiState.config.endpoint,
-                        token = uiState.config.token,
-                        intervalMinutes = uiState.config.intervalMinutes,
+                        config = uiState.config,
+                        allApps = uiState.allApps,
                         isTesting = uiState.isTestingApi,
                         testResult = uiState.testResult,
                         onEndpointChange = { viewModel.updateEndpoint(it) },
                         onTokenChange = { viewModel.updateToken(it) },
                         onIntervalChange = { viewModel.updateInterval(it) },
+                        onHeartbeatSecondsChange = { viewModel.setHeartbeatIntervalSeconds(it) },
+                        onDispatchModeChange = { viewModel.setDispatchMode(it) },
+                        onFormatModeChange = { viewModel.setFormatMode(it) },
+                        onCustomBodyChange = { viewModel.setCustomBodyTemplate(it) },
+                        onSaveAppRule = { viewModel.saveAppRule(it) },
+                        onRemoveAppRule = { viewModel.removeAppRule(it) },
                         onTestApi = { viewModel.testEndpoint() },
                         onClearTestResult = { viewModel.clearTestResult() }
                     )
@@ -921,91 +931,35 @@ fun AppItemRow(
 // ---------------------------------------------------------------------------
 // STEP 3: Endpoint & Real API Test
 // ---------------------------------------------------------------------------
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WizardStepEndpoint(
     subtitle: String,
-    endpoint: String,
-    token: String,
-    intervalMinutes: Int,
+    config: SfrConfig,
+    allApps: List<InstalledAppItem>,
     isTesting: Boolean,
     testResult: com.example.data.model.ApiCallResult?,
     onEndpointChange: (String) -> Unit,
     onTokenChange: (String) -> Unit,
     onIntervalChange: (Int) -> Unit,
+    onHeartbeatSecondsChange: (Int) -> Unit,
+    onDispatchModeChange: (DispatchMode) -> Unit,
+    onFormatModeChange: (WebhookFormatMode) -> Unit,
+    onCustomBodyChange: (String) -> Unit,
+    onSaveAppRule: (AppWebhookRule) -> Unit,
+    onRemoveAppRule: (String) -> Unit,
     onTestApi: () -> Unit,
     onClearTestResult: () -> Unit
 ) {
+    var expandedAppRulePkg by remember { mutableStateOf<String?>(null) }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Text(
-                text = "Alamat Penerima (Webhook URL)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Masukkan URL server Anda yang menerima HTTP POST JSON.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = endpoint,
-                onValueChange = onEndpointChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("endpoint_input"),
-                placeholder = { Text("https://domainanda.com/api/notify.php") },
-                leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                shape = RoundedCornerShape(12.dp)
-            )
-
-            if (endpoint.isNotBlank() && !endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
-                Text(
-                    text = "URL harus diawali https:// atau http://",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
-                )
-            }
-        }
-
-        item {
-            Text(
-                text = "Token Autentikasi (Opsional)",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Jika diisi, akan dikirimkan di header: Authorization: Bearer <token>",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = token,
-                onValueChange = onTokenChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("token_input"),
-                placeholder = { Text("Contoh: sk_live_abcdef123456") },
-                leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(12.dp)
-            )
-        }
-
-        // Encryption Settings Option
+        // Mode Selector: Satu Webhook vs Multi Webhook
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -1013,42 +967,397 @@ fun WizardStepEndpoint(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Enkripsi Data (AES-256)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Standar keamanan opsional. Default tidak dienkripsi (No Enc). Anda dapat mengaktifkannya jika server Anda ingin menerima ciphertext.",
+                        text = "Mode Distribusi Webhook",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Pilih apakah semua aplikasi mengirim ke satu URL yang sama, atau setiap aplikasi memiliki URL dan format tersendiri.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onDispatchModeChange(DispatchMode.SINGLE_WEBHOOK) }
+                                .border(
+                                    width = if (config.dispatchMode == DispatchMode.SINGLE_WEBHOOK) 2.dp else 1.dp,
+                                    color = if (config.dispatchMode == DispatchMode.SINGLE_WEBHOOK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            color = if (config.dispatchMode == DispatchMode.SINGLE_WEBHOOK) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Satu Webhook", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("Semua aplikasi ke 1 URL default", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { onDispatchModeChange(DispatchMode.MULTI_WEBHOOK) }
+                                .border(
+                                    width = if (config.dispatchMode == DispatchMode.MULTI_WEBHOOK) 2.dp else 1.dp,
+                                    color = if (config.dispatchMode == DispatchMode.MULTI_WEBHOOK) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                                    shape = RoundedCornerShape(10.dp)
+                                ),
+                            color = if (config.dispatchMode == DispatchMode.MULTI_WEBHOOK) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("Multi Webhook", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text("Routing per-aplikasi terpisah", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
         }
 
+        // ==========================================
+        // SINGLE WEBHOOK MODE
+        // ==========================================
+        if (config.dispatchMode == DispatchMode.SINGLE_WEBHOOK) {
+            item {
+                Text(
+                    text = "Alamat Penerima (Webhook URL)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Dukungan Shortcode MacroDroid langsung di URL: {app}, {message}, {title}, dll.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = config.endpoint,
+                    onValueChange = onEndpointChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("endpoint_input"),
+                    placeholder = { Text("https://contoh.com/webhook.php?app={app}&msg={message}") },
+                    leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                if (config.endpoint.isNotBlank() && !config.endpoint.startsWith("http://") && !config.endpoint.startsWith("https://")) {
+                    Text(
+                        text = "URL harus diawali https:// atau http://",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                    )
+                }
+            }
+
+            item {
+                Text(
+                    text = "Token Autentikasi (Opsional)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Jika diisi, akan dikirimkan di header: Authorization: Bearer <token>",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = config.token,
+                    onValueChange = onTokenChange,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("token_input"),
+                    placeholder = { Text("Contoh: sk_live_abcdef123456") },
+                    leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            }
+
+            // Format Selection: Default JSON vs Custom MacroDroid Shortcode
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(
+                            text = "Format Respon & Payload",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Sesuaikan parameter yang diharapkan server backend Anda.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = config.formatMode == WebhookFormatMode.DEFAULT_JSON,
+                                onClick = { onFormatModeChange(WebhookFormatMode.DEFAULT_JSON) },
+                                label = { Text("Default JSON Standar") }
+                            )
+
+                            FilterChip(
+                                selected = config.formatMode == WebhookFormatMode.CUSTOM_TEMPLATE,
+                                onClick = { onFormatModeChange(WebhookFormatMode.CUSTOM_TEMPLATE) },
+                                label = { Text("Kustom Shortcode (MacroDroid)") }
+                            )
+                        }
+
+                        if (config.formatMode == WebhookFormatMode.CUSTOM_TEMPLATE) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Template Body HTTP (Gunakan Shortcode):",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Chip shortcodes helper
+                            val shortcodes = listOf("{app}", "{title}", "{message}", "{time}", "{package}")
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                shortcodes.forEach { code ->
+                                    Surface(
+                                        shape = RoundedCornerShape(6.dp),
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.clickable {
+                                            onCustomBodyChange(config.customBodyTemplate + " $code")
+                                        }
+                                    ) {
+                                        Text(
+                                            text = "+ $code",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            OutlinedTextField(
+                                value = config.customBodyTemplate,
+                                onValueChange = onCustomBodyChange,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("custom_body_input"),
+                                minLines = 4,
+                                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 12.sp),
+                                shape = RoundedCornerShape(10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            // ==========================================
+            // MULTI WEBHOOK MODE (PER-APP ROUTING)
+            // ==========================================
+            item {
+                Text(
+                    text = "Konfigurasi Routing Per-Aplikasi",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Tentukan URL endpoint dan format khusus untuk masing-masing aplikasi terpilih:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            val selectedPkgs = config.selectedApps.toList()
+            if (selectedPkgs.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            text = "Belum ada aplikasi yang dipilih di Langkah 3. Silakan kembali dan centang aplikasi sumber terlebih dahulu.",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(14.dp)
+                        )
+                    }
+                }
+            } else {
+                items(selectedPkgs) { pkg ->
+                    val appItem = allApps.firstOrNull { it.packageName == pkg }
+                    val appName = appItem?.appName ?: pkg
+                    val currentRule = config.appWebhookRules[pkg] ?: AppWebhookRule(
+                        packageName = pkg,
+                        appName = appName,
+                        endpoint = config.endpoint,
+                        token = config.token
+                    )
+                    val isExpanded = expandedAppRulePkg == pkg
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        expandedAppRulePkg = if (isExpanded) null else pkg
+                                    },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                    AppIconImage(packageName = pkg, contentDescription = appName, size = 36.dp)
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column {
+                                        Text(appName, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+                                        Text(
+                                            text = if (currentRule.endpoint.isNotBlank()) currentRule.endpoint else "Belum diatur (pakai default)",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+
+                                TextButton(onClick = { expandedAppRulePkg = if (isExpanded) null else pkg }) {
+                                    Text(if (isExpanded) "Tutup" else "Atur")
+                                }
+                            }
+
+                            if (isExpanded) {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                HorizontalDivider()
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                OutlinedTextField(
+                                    value = currentRule.endpoint,
+                                    onValueChange = { onSaveAppRule(currentRule.copy(endpoint = it)) },
+                                    label = { Text("URL Endpoint Khusus ($appName)") },
+                                    placeholder = { Text("https://domain.com/webhook_$appName.php") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = currentRule.token,
+                                    onValueChange = { onSaveAppRule(currentRule.copy(token = it)) },
+                                    label = { Text("Token API Khusus (Opsional)") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                OutlinedTextField(
+                                    value = currentRule.customTemplate,
+                                    onValueChange = { onSaveAppRule(currentRule.copy(customTemplate = it)) },
+                                    label = { Text("Format Body Kustom (Opsional)") },
+                                    placeholder = { Text("{\"pesan\": \"{message}\", \"pengirim\": \"{title}\"}") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    minLines = 2,
+                                    textStyle = androidx.compose.ui.text.TextStyle(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // HEARTBEAT CONFIGURATION
+        // ==========================================
         item {
-            Text(
-                text = "Interval Heartbeat Otomatis",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Kirim ping berkala saat standby aktif: $intervalMinutes menit (min: 15 menit)",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        text = "Interval Heartbeat Otomatis",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val hbText = when {
+                        config.heartbeatIntervalSeconds <= 0 -> "Nonaktif (Hanya kirim saat ada notifikasi masuk)"
+                        config.heartbeatIntervalSeconds < 60 -> "Setiap ${config.heartbeatIntervalSeconds} detik"
+                        else -> "Setiap ${config.heartbeatIntervalSeconds / 60} menit"
+                    }
+                    Text(
+                        text = "Status: $hbText",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-            Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-            Slider(
-                value = intervalMinutes.toFloat(),
-                onValueChange = { onIntervalChange(it.toInt()) },
-                valueRange = 15f..240f,
-                steps = 14,
-                modifier = Modifier.testTag("interval_slider")
-            )
+                    val hbOptions = listOf(
+                        Pair("Nonaktif", 0),
+                        Pair("30 dtk", 30),
+                        Pair("60 dtk", 60),
+                        Pair("5 mnt", 300),
+                        Pair("15 mnt", 900),
+                        Pair("30 mnt", 1800),
+                        Pair("60 mnt", 3600)
+                    )
+
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        hbOptions.forEach { (label, sec) ->
+                            FilterChip(
+                                selected = config.heartbeatIntervalSeconds == sec,
+                                onClick = { onHeartbeatSecondsChange(sec) },
+                                label = { Text(label, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // Test Endpoint Section (REAL CALL)
@@ -1069,7 +1378,7 @@ fun WizardStepEndpoint(
 
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
-                        text = "Tekan tombol di bawah untuk mengirim JSON pengujian nyata ke server dan melihat respons HTTP aslinya.",
+                        text = "Tekan tombol di bawah untuk mengirim paket uji coba nyata ke server dan melihat respons HTTP aslinya.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1078,7 +1387,7 @@ fun WizardStepEndpoint(
 
                     Button(
                         onClick = onTestApi,
-                        enabled = endpoint.isNotBlank() && !isTesting,
+                        enabled = config.endpoint.isNotBlank() && !isTesting,
                         modifier = Modifier
                             .fillMaxWidth()
                             .testTag("test_endpoint_button")

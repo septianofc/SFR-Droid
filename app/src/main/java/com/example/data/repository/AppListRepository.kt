@@ -26,18 +26,12 @@ class AppListRepository(private val context: Context) {
                 }
 
                 val isSystem = (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0
-                val icon = try {
-                    pm.getApplicationIcon(appInfo)
-                } catch (_: Exception) {
-                    null
-                }
-
                 appList.add(
                     InstalledAppItem(
                         packageName = appInfo.packageName,
                         appName = appName,
                         isSystemApp = isSystem,
-                        icon = icon
+                        icon = null
                     )
                 )
             }
